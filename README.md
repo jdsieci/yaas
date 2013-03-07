@@ -1,5 +1,5 @@
 YAAS
 ====
-Yet Another Authentication System
+Yet Another Authentication Service
 
 Erlang Application for user Authentication and Authorization.

@@ -1,0 +1,16 @@
+{application, yass,
+    [
+    {description, "Yet Another Authentication System/Service"},
+    {vsn, "0.0.1"},
+    {registered, [
+                  authz, auth
+                 ]},
+    {modules, []},
+    {applications, [
+                    kernel,
+                    stdlib,
+                    boss_db
+                   ]},
+    {mod, {yaas_app, []}},
+    {env, []}
+    ]}.
