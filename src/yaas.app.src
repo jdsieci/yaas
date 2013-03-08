@@ -1,4 +1,4 @@
-{application, yass,
+{application, yaas,
     [
     {description, "Yet Another Authentication System/Service"},
     {vsn, "0.0.1"},

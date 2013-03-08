@@ -40,8 +40,8 @@
 %%          {ok, Pid, State} |
 %%          {error, Reason}
 %% --------------------------------------------------------------------
-start(StartType, StartArgs) ->
-    case yass_sup:start_link(StartArgs) of
+start(_StartType, _StartArgs) ->
+    case yass_sup:start_link() of
         {ok, Pid} ->
             {ok, Pid};
         Error ->

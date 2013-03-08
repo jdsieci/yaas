@@ -15,7 +15,7 @@
 %% --------------------------------------------------------------------
 %% External exports
 %% --------------------------------------------------------------------
--export([start/2, stop/1]).
+-export([start/0, stop/1]).
 
 %% --------------------------------------------------------------------
 %% Internal exports
@@ -30,11 +30,11 @@
 %% --------------------------------------------------------------------
 %% Records
 %% --------------------------------------------------------------------
-
+-record(pool, {name, size, worker_args}).
 %% ====================================================================
 %% External functions
 %% ====================================================================
-start(_Type, _Args) ->
+start() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
 stop(_State) ->
@@ -54,8 +54,12 @@ init([]) ->
     				 permanent,2000,worker,['AModule']},
 %%     {ok, AuthzPool} = application:get_env(yaas, authz),
     {ok, AuthPool} = application:get_env(yaas, auth),
-     Children = [Server],
-     RestartStrategy = {one_for_one, 4 , 60},
+    AuthSpec = poolboy:child_spec(AuthPool#pool.name,
+                                    [{name, {local, AuthPool#pool.name}},
+                                     {worker_module, example_worker}] ++ AuthPool#pool.size
+                                   ),
+    Children = [AuthSpec],
+    RestartStrategy = {one_for_one, 10 , 10},
     {ok, {RestartStrategy, Children}}.
 
 %% ====================================================================
