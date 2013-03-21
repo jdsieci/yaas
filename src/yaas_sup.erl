@@ -50,14 +50,13 @@ stop(_State) ->
 %%          {error, Reason}
 %% --------------------------------------------------------------------
 init([]) ->
-    Server = {'AName',{'AModule',start_link,[]},
-    				 permanent,2000,worker,['AModule']},
 %%     {ok, AuthzPool} = application:get_env(yaas, authz),
     {ok, AuthPool} = application:get_env(yaas, auth),
     AuthSpec = poolboy:child_spec(AuthPool#pool.name,
                                     [{name, {local, AuthPool#pool.name}},
-                                     {worker_module, example_worker}] ++ AuthPool#pool.size
+                                     {worker_module, yaas_auth}] ++ AuthPool#pool.size
                                    ),
+    io:fwrite("~p~n", [AuthSpec]),
     Children = [AuthSpec],
     RestartStrategy = {one_for_one, 10 , 10},
     {ok, {RestartStrategy, Children}}.
