@@ -3,7 +3,7 @@
 %% @doc @todo Add description to yaas_auth.
 
 
--module(yaas_auth,[Id,
+-module(yaas_users,[Id,
                    UserName::string(),
                    Password]).
 %%
@@ -40,5 +40,4 @@ before_update() ->
 %% Internal functions
 %% ====================================================================
 
-hash_password() ->
-    lists:flatten([io_lib:fwrite("~2.16.0b", [Byte]) || Byte <- binary_to_list(erlang:md5(Password))]).
+
