@@ -10,10 +10,16 @@
 -export([start/0, stop/0]).
 
 %Checks
--export([check_auth/2]).
+-export([check_auth/2, check_authz/2]).
 
 %Adds
--export([add_auth/2]).
+-export([add_auth/2, add_authz/2]).
+
+%Dels
+-export([delete_auth/1, delete_authz/2]).
+
+%Updates
+-export([update_auth/2, update_authz/2]).
 
 start() ->
     application:start(yaas).
@@ -26,6 +32,25 @@ check_auth(UserName, Password) ->
 
 
 add_auth(UserName,[]) ->
+    ok.
+
+update_auth(UserName, []) ->
+    ok.
+
+delete_auth(UserName) ->
+    ok.
+
+
+check_authz(UserName, []) ->
+    ok.
+
+add_authz(UserName, []) ->
+    ok.
+
+update_authz(UserName, []) ->
+    ok.
+
+delete_authz(UserName, []) ->
     ok.
 
 %% ====================================================================
