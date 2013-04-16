@@ -1,0 +1,1 @@
+-record(yaas_auth, {id, username, password}).
