@@ -5,11 +5,16 @@
 
 -module(yaas_users,[Id,
                    UserName::string(),
-                   Password]).
+                   Password,
+                   RealmID,
+                   MainGroup]).
+
+-belongs_to_yaas_realms(realmid).
+-belongs_to_yaas_groups(maingroup).
 %%
 %% Include files
 %%
--include("yaas_auth.hrl").
+-include("yaas_user.hrl").
 
 %% ====================================================================
 %% API functions
@@ -20,7 +25,8 @@
 
 
 validation_tests(on_create) ->
-    [{fun() -> [] == boss_db:find(yaas_auth, [{username, 'equals', Username}])
+    [{fun() -> [] == boss_db:find(yaas_user, [{username, 'equals', Username},
+                                              {realmid, 'equals', RealmID}])
       end, "User exists"}].
 
 before_create() ->
@@ -28,7 +34,7 @@ before_create() ->
     {ok, ModifiedRecord}.
 
 before_update() ->
-    #yaas_auth{password = OldPassword} = boss_db:find(Id),
+    #yaas_user{password = OldPassword} = boss_db:find(Id),
     case OldPassword == Password of
         false -> ModifiedRecord = set(password, hash_password()),
                  {ok, ModifiedRecord};
