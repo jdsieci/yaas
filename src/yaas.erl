@@ -4,6 +4,9 @@
 
 -module(yaas).
 
+-include("yaas_realm.hrl").
+-include("yaas_user.hrl").
+
 %% ====================================================================
 %% API functions
 %% ====================================================================
@@ -27,30 +30,38 @@ start() ->
 stop() ->
     application:stop(stop).
 
-check_auth(UserName, Password) ->
+check_auth({UserName, Realm}, Password) ->
+    {ok, #yaas_realm{id = RealmId}} = boss_db:find(yaas_realm, [{realm,'equals', Realm}]),
+    {ok, #yaas_user{password = UserPassword}} = boss_db:find(yaas_user, [{user_name, 'equals', UserName},
+                                                                         {realm, 'equals', RealmId}]),
+    case {ok, UserPassword} =:= bcrypt:hashpw(Password, UserPassword) of
+        true ->
+            {ok, "Take a Cookie"};
+        false ->
+            {error, "Failed"}
+    end.
+
+
+add_auth({UserName, Realm}, []) ->
+    ok.
+
+update_auth({UserName, Realm}, []) ->
+    ok.
+
+delete_auth({UserName, Realm}) ->
     ok.
 
 
-add_auth(UserName,[]) ->
+check_authz({UserName, Realm}, []) ->
     ok.
 
-update_auth(UserName, []) ->
+add_authz({UserName, Realm}, []) ->
     ok.
 
-delete_auth(UserName) ->
+update_authz({UserName, Realm}, []) ->
     ok.
 
-
-check_authz(UserName, []) ->
-    ok.
-
-add_authz(UserName, []) ->
-    ok.
-
-update_authz(UserName, []) ->
-    ok.
-
-delete_authz(UserName, []) ->
+delete_authz({UserName, Realm}, []) ->
     ok.
 
 %% ====================================================================

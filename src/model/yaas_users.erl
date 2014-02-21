@@ -6,11 +6,11 @@
 -module(yaas_users,[Id,
                    UserName::string(),
                    Password,
-                   RealmID,
-                   MainGroup]).
+                   RealmId,
+                   MainGroupId]).
 
--belongs_to_yaas_realms(realmid).
--belongs_to_yaas_groups(maingroup).
+-belongs_to_yaas_realms(realm).
+-belongs_to_yaas_groups(main_group).
 %%
 %% Include files
 %%
@@ -26,17 +26,17 @@
 
 validation_tests(on_create) ->
     [{fun() -> [] == boss_db:find(yaas_user, [{username, 'equals', Username},
-                                              {realmid, 'equals', RealmID}])
+                                              {realmid, 'equals', RealmId}])
       end, "User exists"}].
 
 before_create() ->
-    ModifiedRecord = set(password, hash_password()),
+    ModifiedRecord = set(password, bcrypt:hashpw(Password, brypt:gen_salt())),
     {ok, ModifiedRecord}.
 
 before_update() ->
     #yaas_user{password = OldPassword} = boss_db:find(Id),
     case OldPassword == Password of
-        false -> ModifiedRecord = set(password, hash_password()),
+        false -> ModifiedRecord = set(password, bcrypt:hashpw(Password, brypt:gen_salt())),
                  {ok, ModifiedRecord};
         true -> ok
     end.
