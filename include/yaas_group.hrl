@@ -1,0 +1,1 @@
+-record(yaas_group,{id, group, realmid, users}).
