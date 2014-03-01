@@ -3,7 +3,7 @@
     {description, "Yet Another Authentication System/Service"},
     {vsn, "0.0.1"},
     {registered, [
-                  authz, auth
+                  yaas_authz, yaas_auth
                  ]},
     {modules, []},
     {applications, [
