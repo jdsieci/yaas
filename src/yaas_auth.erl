@@ -10,36 +10,59 @@
 -behaviour(gen_server).
 -behaviour(poolboy_worker).
 
+%gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+%poolboy_worker callbacks
+-export([start_link/1]).
 
 -include("yaas_realm.hrl").
 -include("yaas_user.hrl").
 -include("yaas_auth.hrl").
+
+-type user()::{string(), string()}.
 
 %% ====================================================================
 %% API functions
 %% ====================================================================
 -export([check/2, add/2, update/2, delete/1]).
 
+
+-spec check(User::user(), Password::string()) -> Result when
+          Result :: ok | error.
 check({UserName, Realm}, Password) ->
-    poolboy:transaction(auth, fun(Worker) ->
+    poolboy:transaction(?MODULE, fun(Worker) ->
                                       gen_server:call(Worker, #check{user = #user{username = UserName, realm = Realm}, password = Password})
                         end).
 
+-spec add(User::user(), list()) -> Result when
+          Result :: ok | error.
 add({UserName, Realm}, []) ->
     ok.
 
+-spec update(User::user(), list()) -> Result when
+          Result :: ok | error.
 update({UserName, Realm}, []) ->
     ok.
 
+-spec delete(User::user()) -> Result when
+          Result :: ok | error.
 delete({UserName, Realm}) ->
-    ok.
+    poolboy:transaction(?MODULE, fun(Worker) ->
+                                         gen_server:cast(Worker, #delete{username = UserName, realm = Realm})
+                        end).
 
 
 %% ====================================================================
 %% Behavioural functions 
 %% ====================================================================
 -record(state, {}).
+
+%% start_link/1
+-spec start_link(Args::term()) -> Result when
+          Result :: {ok, pid()}.
+
+start_link(Args) ->
+    gen_server:start_link(?MODULE, Args, []).
 
 %% init/1
 %% ====================================================================
