@@ -1,1 +1,2 @@
 -record(yaas_user, {id, username, password, realmid, groupid}).
+-record(user, {username, realm = ""}).
