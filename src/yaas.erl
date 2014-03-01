@@ -19,17 +19,6 @@
 %% API exports
 %% --------------------------------------------------------------------
 
-%Checks
--export([check_auth/2, check_authz/2]).
-
-%Adds
--export([add_auth/2, add_authz/2]).
-
-%Dels
--export([delete_auth/1, delete_authz/2]).
-
-%Updates
--export([update_auth/2, update_authz/2]).
 
 %% ====================================================================!
 %% External functions
@@ -66,32 +55,6 @@ stop(_State) ->
 %% API Functions
 %% --------------------------------------------------------------------
 
-check_auth({UserName, Realm}, Password) ->
-    poolboy:transaction(auth, fun(Worker) ->
-                                      gen_server:call(Worker, #check{user = #user{username = UserName, realm = Realm}, password = Password})
-                        end).
-
-add_auth({UserName, Realm}, []) ->
-    ok.
-
-update_auth({UserName, Realm}, []) ->
-    ok.
-
-delete_auth({UserName, Realm}) ->
-    ok.
-
-
-check_authz({UserName, Realm}, []) ->
-    ok.
-
-add_authz({UserName, Realm}, []) ->
-    ok.
-
-update_authz({UserName, Realm}, []) ->
-    ok.
-
-delete_authz({UserName, Realm}, []) ->
-    ok.
 
 %% ====================================================================
 %% Internal functions

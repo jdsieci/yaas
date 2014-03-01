@@ -1,30 +1,23 @@
-%% -*- coding: utf-8 -*-
 %%% -------------------------------------------------------------------
 %%% Author  : tofik
 %%% Description :
 %%%
-%%% Created : 01-03-2014
+%%% Created : 1 mar 2014
 %%% -------------------------------------------------------------------
 
 -module(yaas_authz).
 -behaviour(gen_server).
 -behaviour(poolboy_worker).
-
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
-
--include("yaas_realm.hrl").
--include("yaas_user.hrl").
--include("yaas_auth.hrl").
 
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([check/2, add/2, update/2, delete/1]).
+-export([check/2, add/2, update/2, delete/2]).
 
-check({UserName, Realm}, Password) ->
-    poolboy:transaction(auth, fun(Worker) ->
-                                      gen_server:call(Worker, #check{user = #user{username = UserName, realm = Realm}, password = Password})
-                        end).
+
+check({UserName, Realm}, []) ->
+    ok.
 
 add({UserName, Realm}, []) ->
     ok.
@@ -32,7 +25,7 @@ add({UserName, Realm}, []) ->
 update({UserName, Realm}, []) ->
     ok.
 
-delete({UserName, Realm}) ->
+delete({UserName, Realm}, []) ->
     ok.
 
 
@@ -74,16 +67,9 @@ init([]) ->
 	Timeout :: non_neg_integer() | infinity,
 	Reason :: term().
 %% ====================================================================
-handle_call(#check{user = #user{username = UserName, realm = Realm}, password = Password}, _From, State) ->
-    {ok, #yaas_realm{id = RealmId}} = boss_db:find(yaas_realm, [{realm,'equals', Realm}]),
-    {ok, #yaas_user{password = UserPassword}} = boss_db:find(yaas_user, [{user_name, 'equals', UserName},
-                                                                         {realm, 'equals', RealmId}]),
-    case {ok, UserPassword} =:= bcrypt:hashpw(Password, UserPassword) of
-        true ->
-            {reply, ok, State};
-        false ->
-            {reply, error, State}
-    end.
+handle_call(Request, From, State) ->
+    Reply = ok,
+    {reply, Reply, State}.
 
 
 %% handle_cast/2
