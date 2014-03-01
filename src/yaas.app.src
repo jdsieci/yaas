@@ -9,7 +9,6 @@
     {applications, [
                     kernel,
                     stdlib,
-                    boss_db,
                     bcrypt
                    ]},
     {mod, {yaas, []}},
