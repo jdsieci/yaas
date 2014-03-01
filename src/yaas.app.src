@@ -12,7 +12,7 @@
                     boss_db,
                     bcrypt
                    ]},
-    {mod, {yaas_app, []}},
+    {mod, {yaas, []}},
     {env, []}
     ]
 }.

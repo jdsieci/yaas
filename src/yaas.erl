@@ -4,13 +4,20 @@
 
 -module(yaas).
 
--include("yaas_realm.hrl").
--include("yaas_user.hrl").
+-behaviour(application).
 
-%% ====================================================================
-%% API functions
-%% ====================================================================
--export([start/0, stop/0]).
+%-include("yaas_realm.hrl").
+-include("yaas_user.hrl").
+-include("yaas_auth.hrl").
+
+%% --------------------------------------------------------------------
+%% Behavioural exports
+%% --------------------------------------------------------------------
+-export([start/2, start/0, stop/1]).
+
+%% --------------------------------------------------------------------
+%% API exports
+%% --------------------------------------------------------------------
 
 %Checks
 -export([check_auth/2, check_authz/2]).
@@ -24,23 +31,45 @@
 %Updates
 -export([update_auth/2, update_authz/2]).
 
-start() ->
-    application:start(yaas).
+%% ====================================================================!
+%% External functions
+%% ====================================================================!
 
-stop() ->
-    application:stop(stop).
+%% --------------------------------------------------------------------
+%% Behavioural functions
+%% --------------------------------------------------------------------
 
-check_auth({UserName, Realm}, Password) ->
-    {ok, #yaas_realm{id = RealmId}} = boss_db:find(yaas_realm, [{realm,'equals', Realm}]),
-    {ok, #yaas_user{password = UserPassword}} = boss_db:find(yaas_user, [{user_name, 'equals', UserName},
-                                                                         {realm, 'equals', RealmId}]),
-    case {ok, UserPassword} =:= bcrypt:hashpw(Password, UserPassword) of
-        true ->
-            {ok, "Take a Cookie"};
-        false ->
-            {error, "Failed"}
+%% --------------------------------------------------------------------
+%% Func: start/2
+%% Returns: {ok, Pid}        |
+%%          {ok, Pid, State} |
+%%          {error, Reason}
+%% --------------------------------------------------------------------
+start(_StartType, _StartArgs) ->
+    case yass_sup:start_link() of
+        {ok, Pid} ->
+            {ok, Pid};
+        Error ->
+            {error, Error}
     end.
 
+start() ->
+    start([],[]).
+%% --------------------------------------------------------------------
+%% Func: stop/1
+%% Returns: any
+%% --------------------------------------------------------------------
+stop(_State) ->
+    ok.
+
+%% --------------------------------------------------------------------
+%% API Functions
+%% --------------------------------------------------------------------
+
+check_auth({UserName, Realm}, Password) ->
+    poolboy:transaction(auth, fun(Worker) ->
+                                      gen_server:call(Worker, #check{user = #user{username = UserName, realm = Realm}, password = Password})
+                        end).
 
 add_auth({UserName, Realm}, []) ->
     ok.
