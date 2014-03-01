@@ -1,13 +1,13 @@
 %% -*- coding: utf-8 -*-
 %% @author tofik
-%% @doc @todo Add description to yaas_auth.
+%% @doc.
 
 -module(yaas_realms, [Id,
                       Realm::string(),
-                      ParentRealm,
+                      ParentRealmId,
                       Children]).
 
--belongs_to_yaas_realms(parentrealm).
+-belongs_to_yaas_realms(parent_realm).
 
 %%
 %% Include files
@@ -21,7 +21,7 @@
 
 validation_tests(on_create) ->
     [{fun() -> [] == boss_db:find(yaas_realm, [{realm, 'equals', Realm}])
-      end, "Realm exists"}].
+     end, "Realm exists"}].
 
 %% ====================================================================
 %% Internal functions

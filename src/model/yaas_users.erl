@@ -25,7 +25,7 @@
 
 
 validation_tests(on_create) ->
-    [{fun() -> [] == boss_db:find(yaas_user, [{username, 'equals', Username},
+    [{fun() -> [] == boss_db:find(yaas_user, [{username, 'equals', UserName},
                                               {realmid, 'equals', RealmId}])
       end, "User exists"}].
 
@@ -35,7 +35,7 @@ before_create() ->
 
 before_update() ->
     #yaas_user{password = OldPassword} = boss_db:find(Id),
-    case OldPassword == Password of
+    case OldPassword =:= Password of
         false -> ModifiedRecord = set(password, bcrypt:hashpw(Password, brypt:gen_salt())),
                  {ok, ModifiedRecord};
         true -> ok
@@ -45,5 +45,3 @@ before_update() ->
 %% ====================================================================
 %% Internal functions
 %% ====================================================================
-
-

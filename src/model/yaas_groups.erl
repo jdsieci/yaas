@@ -3,11 +3,11 @@
 %% @doc.
 
 -module(yaas_groups,[Id,
-                     Group,
-                     RealmID,
+                     Group::string(),
+                     RealmId,
                      Users]).
 
--belongs_to_yaas_realms(realmid).
+-belongs_to_yaas_realms(realm).
 
 %%
 %% Include files
@@ -21,7 +21,7 @@
 
 validation_tests(on_create) ->
     [{fun() -> [] == boss_db:find(yaas_group, [{group, 'equals', Group},
-                                               {realmid, 'equals', RealmID}])
+                                               {realmid, 'equals', RealmId}])
       end, "Group exists"}].
 
 
