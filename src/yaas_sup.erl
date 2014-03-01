@@ -54,14 +54,12 @@ stop(_State) ->
 %% --------------------------------------------------------------------
 init([]) ->
 %%     {ok, AuthzPool} = application:get_env(yaas, authz),
-    {ok, AuthPool} = get_pool_config(auth),
-    io:format("~p~n",[AuthPool]),
+    {ok, AuthPool} = get_pool_config(yaas_auth),
     AuthSpec = poolboy:child_spec(AuthPool#pool.name,
                                   [{name, {local, AuthPool#pool.name}},
                                    {worker_module, yaas_auth}] ++ AuthPool#pool.size,
                                   AuthPool#pool.worker_args
                                    ),
-    io:fwrite("~p~n", [AuthSpec]),
     Children = [AuthSpec],
     RestartStrategy = {one_for_one, 10 , 10},
     {ok, {RestartStrategy, Children}}.
