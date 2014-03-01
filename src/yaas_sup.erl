@@ -15,7 +15,7 @@
 %% --------------------------------------------------------------------
 %% External exports
 %% --------------------------------------------------------------------
--export([start/0, stop/1]).
+-export([start/0, start_link/0, stop/1]).
 
 %% --------------------------------------------------------------------
 %% Internal exports
@@ -37,6 +37,9 @@
 start() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
+start_link() ->
+    supervisor:start_link({local, ?SERVER}, ?MODULE, []).
+
 stop(_State) ->
     ok.
 
@@ -51,10 +54,12 @@ stop(_State) ->
 %% --------------------------------------------------------------------
 init([]) ->
 %%     {ok, AuthzPool} = application:get_env(yaas, authz),
-    {ok, AuthPool} = application:get_env(yaas, auth),
+    {ok, AuthPool} = get_pool_config(auth),
+    io:format("~p~n",[AuthPool]),
     AuthSpec = poolboy:child_spec(AuthPool#pool.name,
-                                    [{name, {local, AuthPool#pool.name}},
-                                     {worker_module, yaas_auth}] ++ AuthPool#pool.size
+                                  [{name, {local, AuthPool#pool.name}},
+                                   {worker_module, yaas_auth}] ++ AuthPool#pool.size,
+                                  AuthPool#pool.worker_args
                                    ),
     io:fwrite("~p~n", [AuthSpec]),
     Children = [AuthSpec],
@@ -64,4 +69,16 @@ init([]) ->
 %% ====================================================================
 %% Internal functions
 %% ====================================================================
+-spec get_pool_config(Pool::atom()) -> Result when
+          Result :: {ok, Config}
+              | {error, Reason},
+          Config :: term(),
+          Reason :: term.
 
+get_pool_config(Pool) ->
+    case application:get_env(Pool) of
+        {ok, {SizeArgs, WorkerArgs}} ->
+            {ok, #pool{name = Pool, size = SizeArgs, worker_args = WorkerArgs }};
+        undefined ->
+            {error, "Undefined pool"}
+    end.

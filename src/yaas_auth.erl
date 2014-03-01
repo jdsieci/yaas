@@ -6,7 +6,7 @@
 %%% Created : 01-03-2014
 %%% -------------------------------------------------------------------
 
--module(yaas_authz).
+-module(yaas_auth).
 -behaviour(gen_server).
 -behaviour(poolboy_worker).
 
@@ -112,7 +112,7 @@ handle_cast(Msg, State) ->
 	NewState :: term(),
 	Timeout :: non_neg_integer() | infinity.
 %% ====================================================================
-handle_info(Info, State) ->
+handle_info(_Info, State) ->
     {noreply, State}.
 
 
@@ -125,7 +125,7 @@ handle_info(Info, State) ->
 			| {shutdown, term()}
 			| term().
 %% ====================================================================
-terminate(Reason, State) ->
+terminate(shutdown, _State) ->
     ok.
 
 
@@ -137,7 +137,7 @@ terminate(Reason, State) ->
 	OldVsn :: Vsn | {down, Vsn},
 	Vsn :: term().
 %% ====================================================================
-code_change(OldVsn, State, Extra) ->
+code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 
