@@ -25,7 +25,7 @@
 
 
 validation_tests(on_create) ->
-    [{fun() -> [] == boss_db:find(yaas_user, [{username, 'equals', UserName},
+    [{fun() -> [] == boss_db:find(yaas_users, [{username, 'equals', UserName},
                                               {realmid, 'equals', RealmId}])
       end, "User exists"}].
 

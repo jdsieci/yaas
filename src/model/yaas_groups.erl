@@ -20,7 +20,7 @@
 -export([validation_tests/1]).
 
 validation_tests(on_create) ->
-    [{fun() -> [] == boss_db:find(yaas_group, [{group, 'equals', Group},
+    [{fun() -> [] == boss_db:find(yaas_groups, [{group, 'equals', Group},
                                                {realmid, 'equals', RealmId}])
       end, "Group exists"}].
 

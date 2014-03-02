@@ -20,7 +20,7 @@
 -export([validation_tests/1]).
 
 validation_tests(on_create) ->
-    [{fun() -> [] == boss_db:find(yaas_realm, [{realm, 'equals', Realm}])
+    [{fun() -> [] == boss_db:find(yaas_realms, [{realm, 'equals', Realm}])
      end, "Realm exists"}].
 
 %% ====================================================================
