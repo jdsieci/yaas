@@ -1,1 +1,2 @@
 -record(check, {user, password}).
+-record(delete, {username, realm}).

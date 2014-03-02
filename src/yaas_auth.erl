@@ -98,15 +98,20 @@ init([]) ->
 	Reason :: term().
 %% ====================================================================
 handle_call(#check{user = #user{username = UserName, realm = Realm}, password = Password}, _From, State) ->
-    {ok, #yaas_realm{id = RealmId}} = boss_db:find(yaas_realm, [{realm,'equals', Realm}]),
-    {ok, #yaas_user{password = UserPassword}} = boss_db:find(yaas_user, [{user_name, 'equals', UserName},
+    {ok, #yaas_realm{id = RealmId}} = boss_db:find(yaas_realms, [{realm,'equals', Realm}]),
+    {ok, #yaas_user{password = UserPassword}} = boss_db:find(yaas_users, [{user_name, 'equals', UserName},
                                                                          {realm, 'equals', RealmId}]),
     case {ok, UserPassword} =:= bcrypt:hashpw(Password, UserPassword) of
         true ->
             {reply, ok, State};
         false ->
             {reply, error, State}
-    end.
+    end;
+handle_call(#delete{username = UserName, realm = Realm}, _From, State) ->
+    {ok, #yaas_realm{id = RealmId}} = boss_db:find(yaas_realms, [{realm,'equals', Realm}]),
+    {ok, #yaas_user{id = UserId}} = boss_db:find(yaas_users, [{user_name, 'equals', UserName},
+                                                                         {realm, 'equals', RealmId}]),
+    {reply, boss_db:delete(UserId), State}.
 
 
 %% handle_cast/2
