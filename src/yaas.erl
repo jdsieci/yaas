@@ -39,7 +39,7 @@
 %% --------------------------------------------------------------------
 start(_StartType, _StartArgs) ->
     start_boss_db(),
-    case yaas_sup:start_link() of
+    case yaas_main_sup:start_link() of
         {ok, Pid} ->
             {ok, Pid};
         Error ->
@@ -65,7 +65,7 @@ start() ->
     application:start(?MODULE).
 
 stop() ->
-    Res = application:stop(?MODULE),    
+    Res = application:stop(?MODULE),
     application:stop(bcrypt),
     application:stop(crypto),
     Res.
