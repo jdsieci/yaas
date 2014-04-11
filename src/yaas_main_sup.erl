@@ -94,6 +94,4 @@ prepare_db_cache(Options) ->
     AdapterName = proplists:get_value(adapter, CacheOpts, memcached_bin),
     Adapter	= list_to_atom(lists:concat(["boss_cache_adapter_", AdapterName])),
     Adapter:start(CacheOpts),
-	{boss_cache, {boss_cache_sup, start_link, CacheOpts}, permanent, infinity, supervisor, [boss_cache_sup]};
-prepare_db_cache(_) ->
-    {}.
+	{boss_cache, {boss_cache_sup, start_link, CacheOpts}, permanent, infinity, supervisor, [boss_cache_sup]}.
