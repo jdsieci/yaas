@@ -9,7 +9,8 @@
     {applications, [
                     kernel,
                     stdlib,
-                    bcrypt
+                    bcrypt,
+                    lager
                    ]},
     {mod, {yaas, []}},
     {env, []}
