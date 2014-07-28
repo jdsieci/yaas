@@ -3,15 +3,14 @@
 %% @doc @todo Add description to yaas_auth.
 
 
--module(    User = yaas_user:new(id, UserName, proplists:get_value(password, Props), RealmId, GroupId),
-,[Id,
+-module(yaas_user, [Id,
                    UserName::string(),
                    Password,
                    RealmId,
                    MainGroupId]).
 
--belongs_to_yaas_realms(realm).
--belongs_to_yaas_groups(main_group).
+-belongs_to_yaas_realm(realm).
+-belongs_to_yaas_group(main_group).
 %%
 %% Include files
 %%
