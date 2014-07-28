@@ -1,2 +1,3 @@
 -record(check, {user, password}).
 -record(delete, {username, realm}).
+-record(add, {user, props = []}).
