@@ -105,8 +105,8 @@ init([]) ->
 	Reason :: term().
 %% ====================================================================
 handle_call(#check{user = #user{username = UserName, realm = Realm}, password = Password}, _From, State) ->
-    {ok, #yaas_realm{id = RealmId}} = boss_db:find(yaas_realms, [{realm,'equals', Realm}]),
-    {ok, #yaas_user{password = UserPassword}} = boss_db:find(yaas_users, [{user_name, 'equals', UserName},
+    {ok, #yaas_realm{id = RealmId}} = boss_db:find(yaas_realm, [{realm,'equals', Realm}]),
+    {ok, #yaas_user{password = UserPassword}} = boss_db:find(yaas_user, [{user_name, 'equals', UserName},
                                                                          {realm, 'equals', RealmId}]),
     case {ok, UserPassword} =:= bcrypt:hashpw(Password, UserPassword) of
         true ->
@@ -115,20 +115,19 @@ handle_call(#check{user = #user{username = UserName, realm = Realm}, password = 
             {reply, error, State}
     end;
 handle_call(#add{user = #user{username = UserName, realm = Realm}, props = Props}, _From, State) ->
-    {ok, #yaas_realm{id = RealmId}} = boss_db:find(yaas_realms, [{realm,'equals', Realm}]),
+    {ok, #yaas_realm{id = RealmId}} = boss_db:find(yaas_realm, [{realm,'equals', Realm}]),
     {ok, #yaas_group{id = GroupId}} = boss_db:find(yaas_group, [{group, 'equals', proplists:get_value(group, Props)},
                                                                 {realmid, 'equals', RealmId}
                                                                 ]),
+    User = yaas_user:new(id, UserName, proplists:get_value(password, Props), RealmId, GroupId),
     proplists:delete(group, Props),
-    User = yaas_users:new(id, UserName, proplists:get_value(password, Props), RealmId, GroupId),
     proplists:delete(password, Props),
     {ok, SavedUser} = User:save(),
-    proplists:delete(password, Props),
     {reply, update_props(SavedUser:id(), RealmId, Props), State};
 
 handle_call(#delete{username = UserName, realm = Realm}, _From, State) ->
-    {ok, #yaas_realm{id = RealmId}} = boss_db:find(yaas_realms, [{realm,'equals', Realm}]),
-    {ok, #yaas_user{id = UserId}} = boss_db:find(yaas_users, [{user_name, 'equals', UserName},
+    {ok, #yaas_realm{id = RealmId}} = boss_db:find(yaas_realm, [{realm,'equals', Realm}]),
+    {ok, #yaas_user{id = UserId}} = boss_db:find(yaas_user, [{user_name, 'equals', UserName},
                                                                          {realm, 'equals', RealmId}]),
     {reply, boss_db:delete(UserId), State}.
 
@@ -145,8 +144,8 @@ handle_call(#delete{username = UserName, realm = Realm}, _From, State) ->
 	Timeout :: non_neg_integer() | infinity.
 %% ====================================================================
 handle_cast(#delete{username = UserName, realm = Realm}, State) ->
-    {ok, #yaas_realm{id = RealmId}} = boss_db:find(yaas_realms, [{realm,'equals', Realm}]),
-    {ok, #yaas_user{id = UserId}} = boss_db:find(yaas_users, [{user_name, 'equals', UserName},
+    {ok, #yaas_realm{id = RealmId}} = boss_db:find(yaas_realm, [{realm,'equals', Realm}]),
+    {ok, #yaas_user{id = UserId}} = boss_db:find(yaas_user, [{user_name, 'equals', UserName},
                                                                          {realm, 'equals', RealmId}]),
     boss_db:delete(UserId),
     {noreply, State}.
@@ -259,6 +258,7 @@ add_groups(UserId, [ Group | T ]) ->
 delete_groups([]) ->
     ok;
 delete_groups([Group | T]) ->
+
     case boss_db:delete(Group:id()) of
         ok ->
             delete_groups(T);
