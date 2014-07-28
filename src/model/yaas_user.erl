@@ -3,7 +3,8 @@
 %% @doc @todo Add description to yaas_auth.
 
 
--module(yaas_users,[Id,
+-module(    User = yaas_user:new(id, UserName, proplists:get_value(password, Props), RealmId, GroupId),
+,[Id,
                    UserName::string(),
                    Password,
                    RealmId,
@@ -25,7 +26,7 @@
 
 
 validation_tests(on_create) ->
-    [{fun() -> [] == boss_db:find(yaas_users, [{username, 'equals', UserName},
+    [{fun() -> [] == boss_db:find(yaas_user, [{username, 'equals', UserName},
                                               {realmid, 'equals', RealmId}])
       end, "User exists"}].
 

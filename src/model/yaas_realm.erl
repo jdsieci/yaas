@@ -2,12 +2,12 @@
 %% @author tofik
 %% @doc.
 
--module(yaas_realms, [Id,
+-module(yaas_realm, [Id,
                       Realm::string(),
                       ParentRealmId,
                       Children]).
 
--belongs_to_yaas_realms(parent_realm).
+-belongs_to_yaas_realm(parent_realm).
 
 %%
 %% Include files
@@ -20,7 +20,7 @@
 -export([validation_tests/1]).
 
 validation_tests(on_create) ->
-    [{fun() -> [] == boss_db:find(yaas_realms, [{realm, 'equals', Realm}])
+    [{fun() -> [] == boss_db:find(yaas_realm, [{realm, 'equals', Realm}])
      end, "Realm exists"}].
 
 %% ====================================================================
