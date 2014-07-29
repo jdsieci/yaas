@@ -48,7 +48,6 @@ init([]) ->
     YaasController = {yaas_controller ,{yaas_controller, start_link,[]},
                permanent, infinity, worker, dynamic},
 	Children = [YaasController, YaasSup],
-	io:fwrite("Children spec: ~p~n", [Children]),
     {ok,{{one_for_one, 0, 1}, Children}}.
 
 %% ====================================================================
