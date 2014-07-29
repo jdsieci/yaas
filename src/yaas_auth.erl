@@ -105,8 +105,8 @@ init([]) ->
 	Reason :: term().
 %% ====================================================================
 handle_call(#check{user = #user{username = UserName, realm = Realm}, password = Password}, _From, State) ->
-    {ok, #yaas_realm{id = RealmId}} = boss_db:find(yaas_realm, [{realm,'equals', Realm}]),
-    {ok, #yaas_user{password = UserPassword}} = boss_db:find(yaas_user, [{user_name, 'equals', UserName},
+    #yaas_realm{id = RealmId} = boss_db:find_first(yaas_realm, [{realm,'equals', Realm}]),
+    #yaas_user{password = UserPassword} = boss_db:find_first(yaas_user, [{user_name, 'equals', UserName},
                                                                          {realm, 'equals', RealmId}]),
     case {ok, UserPassword} =:= bcrypt:hashpw(Password, UserPassword) of
         true ->
@@ -117,26 +117,31 @@ handle_call(#check{user = #user{username = UserName, realm = Realm}, password = 
             {reply, error, State}
     end;
 handle_call(#add{user = #user{username = UserName, realm = Realm}, props = Props}, _From, State) ->
-    {ok, #yaas_realm{id = RealmId}} = boss_db:find(yaas_realm, [{realm,'equals', Realm}]),
-    {ok, #yaas_group{id = GroupId}} = boss_db:find(yaas_group, [{group, 'equals', proplists:get_value(group, Props)},
-                                                                {realmid, 'equals', RealmId}
-                                                                ]),
-    User = yaas_user:new(id, UserName, proplists:get_value(password, Props), RealmId, GroupId),
-    proplists:delete(group, Props),
-    proplists:delete(password, Props),
-    case User:save() of
-        {ok, SavedUser} ->
-            lager:info("User ~p@~p added", [UserName, Realm]),
-            {reply, update_props(SavedUser:id(), RealmId, Props), State};
-        {error, ErrMsg} ->
-            lager:warning("Failed adding user ~p@~p errmgs: ~p", [UserName, Realm, ErrMsg]),
-            {reply, error, State}
+    #yaas_realm{id = RealmId} = boss_db:find_first(yaas_realm, [{realm,'equals', Realm}]),
+    case boss_db:find_first(yaas_group, [{group, 'equals', proplists:get_value(group, Props)},
+                                         {realm_id, 'equals', RealmId}
+                                        ]) of
+        #yaas_group{id = GroupId} ->
+            User = yaas_user:new(id, UserName, proplists:get_value(password, Props), RealmId, GroupId),
+            proplists:delete(group, Props),
+            proplists:delete(password, Props),
+            case User:save() of
+                {ok, SavedUser} ->
+                    lager:info("User ~p@~p added", [UserName, Realm]),
+                    {reply, update_props(SavedUser:id(), RealmId, Props), State};
+                {error, ErrMsg} ->
+                    lager:warning("Failed adding user ~p@~p errmgs: ~p", [UserName, Realm, ErrMsg]),
+                    {reply, error, State}
+            end;
+        undefined ->
+            lager:error("Group does not exists"),
+            {reply, {error, "Group does not exists"}, State}
     end;
 
 handle_call(#delete{username = UserName, realm = Realm}, _From, State) ->
-    {ok, #yaas_realm{id = RealmId}} = boss_db:find(yaas_realm, [{realm,'equals', Realm}]),
-    {ok, #yaas_user{id = UserId}} = boss_db:find(yaas_user, [{user_name, 'equals', UserName},
-                                                                         {realm, 'equals', RealmId}]),
+    #yaas_realm{id = RealmId} = boss_db:find_first(yaas_realm, [{realm,'equals', Realm}]),
+    #yaas_user{id = UserId} = boss_db:find_first(yaas_user, [{user_name, 'equals', UserName},
+                                                             {realm, 'equals', RealmId}]),
     {reply, boss_db:delete(UserId), State}.
 
 
@@ -225,37 +230,40 @@ update_props(UserId, RealmId, [{delete_groups, Groups} | T]) ->
             update_props(UserId, RealmId, T);
         error ->
             error
-    end.
+    end;
+update_props(UserId, RealmId, [_ | T]) ->
+    update_props(UserId, RealmId, T).
 
 
 add_groups(UserId, RealmId, GroupNames) ->
-    {ok, Groups} = boss_db:find(yaas_group, [{group, 'in', GroupNames},
-                                             {users, 'not_contains', UserId},
-                                             {realmid, 'equals', RealmId}
-                                            ]),
+    Groups = boss_db:find(yaas_group, [{group, 'in', GroupNames},
+                                       {users, 'not_contains', UserId},
+                                       {realm_id, 'equals', RealmId}
+                                      ]),
     add_groups(UserId, Groups).
 
 delete_groups(UserId, RealmId, GroupNames) ->
-    {ok, Groups} = boss_db:find(yaas_group, [{group, 'in', GroupNames},
-                                             {users, 'contains', UserId},
-                                             {realmid, 'equals', RealmId}
-                                            ]),
-    delete_groups(Groups).
+    Groups = boss_db:find(yaas_group, [{group, 'in', GroupNames},
+                                       {users, 'contains', UserId},
+                                       {realm_id, 'equals', RealmId}
+                                      ]),
+    delete_groups(UserId, Groups).
 
 update_groups(UserId, RealmId, GroupNames) ->
-    {ok, Groups} = boss_db:find(yaas_group, [{group, 'not_in', GroupNames},
-                                             {users, 'contains', UserId},
-                                             {realmid, 'equals', RealmId}
-                                            ]),
-    delete_groups(Groups),
-    add_groups(UserId, Groups).
+    delete_groups(UserId, boss_db:find(yaas_group, [{group, 'not_in', GroupNames},
+                                                    {users, 'contains', UserId},
+                                                    {realm_id, 'equals', RealmId}
+                                                   ])),
+    add_groups(UserId, boss_db:find(yaas_group, [{group, 'in', GroupNames},
+                                                 {users, 'not_contains', UserId},
+                                                 {realm_id, 'equals', RealmId}
+                                                ])).
 
 
 add_groups(_, []) ->
     ok;
 add_groups(UserId, [ Group | T ]) ->
-    #yaas_group{ users = Users } = Group,
-    NewGroup = Group:set(users, [UserId | Users]),
+    NewGroup = Group:set(users, [UserId | Group:users()]),
     case NewGroup:save() of
         {ok, _} ->
             add_groups(UserId, T);
@@ -263,12 +271,13 @@ add_groups(UserId, [ Group | T ]) ->
             Error
     end.
 
-delete_groups([]) ->
+delete_groups(_, []) ->
     ok;
-delete_groups([Group | T]) ->
-    case boss_db:delete(Group:id()) of
-        ok ->
-            delete_groups(T);
+delete_groups(UserId, [Group | T]) ->
+    NewGroup = Group:set(users, lists:delete(UserId, Group:users())),
+    case NewGroup:save() of
+        {ok, _} ->
+            delete_groups(UserId, T);
         Error ->
             Error
     end.
