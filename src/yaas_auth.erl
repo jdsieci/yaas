@@ -110,8 +110,10 @@ handle_call(#check{user = #user{username = UserName, realm = Realm}, password = 
                                                                          {realm, 'equals', RealmId}]),
     case {ok, UserPassword} =:= bcrypt:hashpw(Password, UserPassword) of
         true ->
+            lager:info("User ~p@~p authenticated", [UserName, Realm]),
             {reply, ok, State};
         false ->
+            lager:info("Authentication failed ~p@~p", [UserName, Realm]),
             {reply, error, State}
     end;
 handle_call(#add{user = #user{username = UserName, realm = Realm}, props = Props}, _From, State) ->
@@ -122,8 +124,14 @@ handle_call(#add{user = #user{username = UserName, realm = Realm}, props = Props
     User = yaas_user:new(id, UserName, proplists:get_value(password, Props), RealmId, GroupId),
     proplists:delete(group, Props),
     proplists:delete(password, Props),
-    {ok, SavedUser} = User:save(),
-    {reply, update_props(SavedUser:id(), RealmId, Props), State};
+    case User:save() of
+        {ok, SavedUser} ->
+            lager:info("User ~p@~p added", [UserName, Realm]),
+            {reply, update_props(SavedUser:id(), RealmId, Props), State};
+        {error, ErrMsg} ->
+            lager:warning("Failed adding user ~p@~p errmgs: ~p", [UserName, Realm, ErrMsg]),
+            {reply, error, State}
+    end;
 
 handle_call(#delete{username = UserName, realm = Realm}, _From, State) ->
     {ok, #yaas_realm{id = RealmId}} = boss_db:find(yaas_realm, [{realm,'equals', Realm}]),
@@ -258,7 +266,6 @@ add_groups(UserId, [ Group | T ]) ->
 delete_groups([]) ->
     ok;
 delete_groups([Group | T]) ->
-
     case boss_db:delete(Group:id()) of
         ok ->
             delete_groups(T);
