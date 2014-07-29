@@ -48,8 +48,10 @@ add({UserName, Realm}, Props) when is_list(Props) ->
 
 -spec update(User::user(), list()) -> Result when
           Result :: ok | error.
-update({UserName, Realm}, []) ->
-    ok.
+update({UserName, Realm}, Props) when is_list(Props) ->
+    poolboy:transaction(?MODULE, fun(Worker) ->
+                                      gen_server:call(Worker, #update{user = #user{username = UserName, realm = Realm}, props = Props})
+                        end).
 
 -spec delete(User::user()) -> Result when
           Result :: ok | error.
@@ -107,7 +109,7 @@ init([]) ->
 handle_call(#check{user = #user{username = UserName, realm = Realm}, password = Password}, _From, State) ->
     #yaas_realm{id = RealmId} = boss_db:find_first(yaas_realm, [{realm,'equals', Realm}]),
     #yaas_user{password = UserPassword} = boss_db:find_first(yaas_user, [{user_name, 'equals', UserName},
-                                                                         {realm, 'equals', RealmId}]),
+                                                                         {realm_id, 'equals', RealmId}]),
     case {ok, UserPassword} =:= bcrypt:hashpw(Password, UserPassword) of
         true ->
             lager:info("User ~p@~p authenticated", [UserName, Realm]),
@@ -122,20 +124,55 @@ handle_call(#add{user = #user{username = UserName, realm = Realm}, props = Props
                                          {realm_id, 'equals', RealmId}
                                         ]) of
         #yaas_group{id = GroupId} ->
-            User = yaas_user:new(id, UserName, proplists:get_value(password, Props), RealmId, GroupId),
-            proplists:delete(group, Props),
-            proplists:delete(password, Props),
-            case User:save() of
-                {ok, SavedUser} ->
+            case boss_db:transaction(fun() ->
+                                             User = yaas_user:new(id, UserName, proplists:get_value(password, Props), RealmId, GroupId),
+                                             {ok, SavedUser} = User:save(),
+                                             proplists:delete(password, Props),
+                                             update_props(SavedUser, Props)
+                                     end) of
+                {atomic, _Result} ->
                     lager:info("User ~p@~p added", [UserName, Realm]),
-                    {reply, update_props(SavedUser:id(), RealmId, Props), State};
-                {error, ErrMsg} ->
-                    lager:warning("Failed adding user ~p@~p errmgs: ~p", [UserName, Realm, ErrMsg]),
+                    {reply, ok, State};
+                {aborted, Reason}  ->
+                    lager:warning("Failed adding user ~p@~p errmgs: ~p", [UserName, Realm, Reason]),
                     {reply, error, State}
             end;
+%%             User = yaas_user:new(id, UserName, proplists:get_value(password, Props), RealmId, GroupId),
+%%             proplists:delete(password, Props),
+%%             case User:save() of
+%%                 {ok, SavedUser} ->
+%%                     case update_props(SavedUser, Props) of
+%%                         ok ->
+%%                             lager:info("User ~p@~p added", [UserName, Realm]),
+%%                             {reply, ok, State};
+%%                         _ ->
+%%                             {reply, error, State}
+%%                     end;
+%%                 {error, ErrMsg} ->
+%%                     lager:warning("Failed adding user ~p@~p errmgs: ~p", [UserName, Realm, ErrMsg]),
+%%                     {reply, error, State}
+%%             end;
         undefined ->
             lager:error("Group does not exists"),
             {reply, {error, "Group does not exists"}, State}
+    end;
+handle_call(#update{user = #user{username = UserName, realm = RealmName}, props = Props}, _From, State) ->
+    Realm = boss_db:find_first(yaas_realm, [{realm,'equals', RealmName}]),
+    case boss_db:find(yaas_user, [{user_name, 'equals', UserName},
+                                  {realm_id, 'equals', Realm:id()}
+                                 ]) of
+        [User] ->
+            case boss_db:transaction(fun() -> update_props(User, Props) end) of
+                {atomic, Result} ->
+                    lager:info("User ~p@~p updated: ~p", [UserName, RealmName, Result]),
+                    {reply, ok, State};
+                {aborted, Reason}  ->
+                    lager:warning("Failed updating user ~p@~p errmgs: ~p", [UserName, RealmName, Reason]),
+                    {reply, error, State}
+            end;
+        [] ->
+            lager:error("User does not exist"),
+            {reply, {error, "User does not exist"}, State}
     end;
 
 handle_call(#delete{username = UserName, realm = Realm}, _From, State) ->
@@ -208,31 +245,51 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal functions
 %% ====================================================================
 
-update_props(_, _, []) ->
-    ok;
-update_props(UserId, RealmId, [{groups, Groups} | T]) ->
-    case update_groups(UserId, RealmId, Groups) of
+update_props(User, Props) ->
+    update_props(User, Props, {ok, []}).
+
+
+update_props(User, [], State) ->
+    User:save(),
+    State;
+update_props(User, [{password, NewPassword} | Props], {ok, State}) ->
+    NewUser = User:set(password, NewPassword),
+    update_props(NewUser, Props, {ok, [password | State]});
+update_props(User, [{group, NewGroupName} | Props], {ok, State}) ->
+    case boss_db:find(yaas_group, [{group, 'equals', NewGroupName},
+                                   {users, 'not_contains', User:user_name()},
+                                   {realm_id, 'equals', User:realm_id()},
+                                   {id, 'not_equals', User:main_group_id()}
+                                  ]) of
+        [Group] ->
+            NewUser = User:set(main_group_id, Group:id()),
+            update_props(NewUser, Props, {ok, [group | State]});
+        [] ->
+            update_props(User, Props, {ok, State})
+    end;
+update_props(User, [{groups, Groups} | Props], {ok, State}) ->
+    case update_groups(User:id(), User:realm_id(), Groups) of
         ok ->
-            update_props(UserId, RealmId, T);
+            update_props(User, Props, {ok, [groups | State]});
         error ->
             error
     end;
-update_props(UserId, RealmId, [{add_groups, Groups} | T]) ->
-    case add_groups(UserId, RealmId, Groups) of
+update_props(User, [{add_groups, Groups} | Props], {ok, State}) ->
+    case add_groups(User:id(), User:realm_id(), Groups) of
         ok ->
-            update_props(UserId, RealmId, T);
+            update_props(User, Props, {ok, [ add_groups | State]});
         error ->
             error
     end;
-update_props(UserId, RealmId, [{delete_groups, Groups} | T]) ->
-    case delete_groups(UserId, RealmId, Groups) of
+update_props(User, [{delete_groups, Groups} | Props], {ok, State}) ->
+    case delete_groups(User:id(), User:realm_id(), Groups) of
         ok ->
-            update_props(UserId, RealmId, T);
+            update_props(User, Props, {ok, [delete_groups | State]});
         error ->
             error
     end;
-update_props(UserId, RealmId, [_ | T]) ->
-    update_props(UserId, RealmId, T).
+update_props(_User, [_Unknown | _Props], _) ->
+    throw("Unknown property").
 
 
 add_groups(UserId, RealmId, GroupNames) ->
