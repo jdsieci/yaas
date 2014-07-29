@@ -8,7 +8,8 @@
                       Children]).
 
 -belongs_to_yaas_realm(parent_realm).
-
+-has({yaas_user, many}).
+-has({yaas_group, many}).
 %%
 %% Include files
 %%

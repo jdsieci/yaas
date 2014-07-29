@@ -7,8 +7,8 @@
                      RealmId,
                      Users]).
 
--belongs_to_yaas_realms(realm).
-
+-belongs_to_yaas_realm(realm).
+-has({yaas_user, many}).
 %%
 %% Include files
 %%
