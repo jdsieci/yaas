@@ -25,20 +25,24 @@
 
 
 validation_tests(on_create) ->
-    [{fun() -> [] == boss_db:find(yaas_user, [{username, 'equals', UserName},
-                                              {realmid, 'equals', RealmId}])
+    [{fun() -> [] == boss_db:find(yaas_user, [{user_name, 'equals', UserName},
+                                              {realm_id, 'equals', RealmId}])
       end, "User exists"}].
 
 before_create() ->
     {ok, Salt} = bcrypt:gen_salt(),
-    ModifiedRecord = set(password, bcrypt:hashpw(Password, Salt)),
+    {ok, HashedPassword} = bcrypt:hashpw(Password, Salt),
+    ModifiedRecord = set(password, HashedPassword),
     {ok, ModifiedRecord}.
 
 before_update() ->
     #yaas_user{password = OldPassword} = boss_db:find(Id),
     case OldPassword =:= Password of
-        false -> ModifiedRecord = set(password, bcrypt:hashpw(Password, brypt:gen_salt())),
-                 {ok, ModifiedRecord};
+        false ->
+            {ok, Salt} = bcrypt:gen_salt(),
+            {ok, HashedPassword} = bcrypt:hashpw(Password, Salt),
+            ModifiedRecord = set(password, HashedPassword),
+            {ok, ModifiedRecord};
         true -> ok
     end.
 
