@@ -30,7 +30,8 @@ validation_tests(on_create) ->
       end, "User exists"}].
 
 before_create() ->
-    ModifiedRecord = set(password, bcrypt:hashpw(Password, brypt:gen_salt())),
+    {ok, Salt} = bcrypt:gen_salt(),
+    ModifiedRecord = set(password, bcrypt:hashpw(Password, Salt)),
     {ok, ModifiedRecord}.
 
 before_update() ->
