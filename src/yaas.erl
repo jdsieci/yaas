@@ -18,10 +18,18 @@
 %% --------------------------------------------------------------------
 -export([start/0, stop/0]).
 -export([login/2, logout/1]).
+-export_type([user/0, boss_record/0, property/0, properties/0]).
 
 %Types
 -type uuid()        :: binary().
 -type cookie()      :: uuid().
+
+-type user() :: {string(), string()}.
+-type boss_record() :: module().
+-type property() :: {atom(), term()}.
+-type properties() :: [property()].
+
+
 
 %% ====================================================================!
 %% External functions
