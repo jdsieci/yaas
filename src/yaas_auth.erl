@@ -20,7 +20,6 @@
 -include("yaas_group.hrl").
 -include("yaas_auth.hrl").
 
--type user()::{string(), string()}.
 
 %% ====================================================================
 %% API functions
@@ -28,14 +27,14 @@
 -export([check/2, add/2, update/2, delete/1]).
 
 
--spec check(User::user(), Password::string()) -> Result when
+-spec check(User::yaas:user(), Password::string()) -> Result when
           Result :: ok | error.
 check({UserName, Realm}, Password) ->
     poolboy:transaction(?MODULE, fun(Worker) ->
                                       gen_server:call(Worker, #check{user = #user{username = UserName, realm = Realm}, password = Password})
                         end).
 
--spec add(User::user(), list()) -> Result when
+-spec add(User::yaas:user(), list()) -> Result when
           Result :: ok | error.
 add({UserName, Realm}, []) ->
     poolboy:transaction(?MODULE, fun(Worker) ->
@@ -46,18 +45,18 @@ add({UserName, Realm}, Props) when is_list(Props) ->
                                       gen_server:call(Worker, #add{user = #user{username = UserName, realm = Realm}, props = Props})
                         end).
 
--spec update(User::user(), list()) -> Result when
+-spec update(User::yaas:user(), list()) -> Result when
           Result :: ok | error.
 update({UserName, Realm}, Props) when is_list(Props) ->
     poolboy:transaction(?MODULE, fun(Worker) ->
                                       gen_server:call(Worker, #update{user = #user{username = UserName, realm = Realm}, props = Props})
                         end).
 
--spec delete(User::user()) -> Result when
+-spec delete(User::yaas:user()) -> Result when
           Result :: ok | error.
 delete({UserName, Realm}) ->
     poolboy:transaction(?MODULE, fun(Worker) ->
-                                         gen_server:cast(Worker, #delete{username = UserName, realm = Realm})
+                                         gen_server:call(Worker, #delete{username = UserName, realm = Realm})
                         end).
 
 
@@ -123,10 +122,15 @@ handle_call(#add{user = #user{username = UserName, realm = Realm}, props = Props
     case boss_db:find_first(yaas_group, [{group, 'equals', proplists:get_value(group, Props)},
                                          {realm_id, 'equals', RealmId}
                                         ]) of
-        #yaas_group{id = GroupId} ->
+        undefined ->
+            lager:error("Group does not exists"),
+            {reply, {error, "Group does not exists"}, State};
+        Group ->
             case boss_db:transaction(fun() ->
-                                             User = yaas_user:new(id, UserName, proplists:get_value(password, Props), RealmId, GroupId),
+                                             User = yaas_user:new(id, UserName, proplists:get_value(password, Props), RealmId, Group:id()),
                                              {ok, SavedUser} = User:save(),
+                                             NewGroup = Group:set(users, [SavedUser:id() | Group:users()]),
+                                             {ok, _} = NewGroup:save(),
                                              proplists:delete(password, Props),
                                              update_props(SavedUser, Props)
                                      end) of
@@ -136,25 +140,7 @@ handle_call(#add{user = #user{username = UserName, realm = Realm}, props = Props
                 {aborted, Reason}  ->
                     lager:warning("Failed adding user ~p@~p errmgs: ~p", [UserName, Realm, Reason]),
                     {reply, error, State}
-            end;
-%%             User = yaas_user:new(id, UserName, proplists:get_value(password, Props), RealmId, GroupId),
-%%             proplists:delete(password, Props),
-%%             case User:save() of
-%%                 {ok, SavedUser} ->
-%%                     case update_props(SavedUser, Props) of
-%%                         ok ->
-%%                             lager:info("User ~p@~p added", [UserName, Realm]),
-%%                             {reply, ok, State};
-%%                         _ ->
-%%                             {reply, error, State}
-%%                     end;
-%%                 {error, ErrMsg} ->
-%%                     lager:warning("Failed adding user ~p@~p errmgs: ~p", [UserName, Realm, ErrMsg]),
-%%                     {reply, error, State}
-%%             end;
-        undefined ->
-            lager:error("Group does not exists"),
-            {reply, {error, "Group does not exists"}, State}
+            end
     end;
 handle_call(#update{user = #user{username = UserName, realm = RealmName}, props = Props}, _From, State) ->
     Realm = boss_db:find_first(yaas_realm, [{realm,'equals', RealmName}]),
@@ -162,6 +148,7 @@ handle_call(#update{user = #user{username = UserName, realm = RealmName}, props 
                                   {realm_id, 'equals', Realm:id()}
                                  ]) of
         [User] ->
+            lager:debug("User= ~p", [User]),
             case boss_db:transaction(fun() -> update_props(User, Props) end) of
                 {atomic, Result} ->
                     lager:info("User ~p@~p updated: ~p", [UserName, RealmName, Result]),
@@ -175,11 +162,28 @@ handle_call(#update{user = #user{username = UserName, realm = RealmName}, props 
             {reply, {error, "User does not exist"}, State}
     end;
 
-handle_call(#delete{username = UserName, realm = Realm}, _From, State) ->
-    #yaas_realm{id = RealmId} = boss_db:find_first(yaas_realm, [{realm,'equals', Realm}]),
-    #yaas_user{id = UserId} = boss_db:find_first(yaas_user, [{user_name, 'equals', UserName},
-                                                             {realm, 'equals', RealmId}]),
-    {reply, boss_db:delete(UserId), State}.
+handle_call(#delete{username = UserName, realm = RealmName}, _From, State) ->
+    lager:debug("yaas:auth:handle_call/3 action=delete"),
+    #yaas_realm{id = RealmId} = boss_db:find_first(yaas_realm, [{realm,'equals', RealmName}]),
+    User = boss_db:find_first(yaas_user, [{user_name, 'equals', UserName},
+                                          {realm_id, 'equals', RealmId}]),
+    lager:debug("User=~p",[User]),
+    Groups = boss_db:find(yaas_group, [{users, 'contains', User:id()},
+                                       {realm_id, 'equals', RealmId}
+                                      ]),
+    lager:debug("Groups=~p",[Groups]),
+    case boss_db:transaction(fun() ->
+                                     ok = boss_db:delete(User:id()),
+                                     group_delete(User, Groups),
+                                     {ok, "User deleted"}
+                             end) of
+        {atomic, Result} ->
+            lager:info("User ~p@~p deleted", [UserName, RealmName]),
+            {reply, Result, State};
+        {aborted, Reason} ->
+            lager:warning("Failed deleting user ~p@~p reason: ~p", [UserName, RealmName, Reason]),
+            {reply, error, State}
+    end.
 
 
 %% handle_cast/2
@@ -194,9 +198,10 @@ handle_call(#delete{username = UserName, realm = Realm}, _From, State) ->
 	Timeout :: non_neg_integer() | infinity.
 %% ====================================================================
 handle_cast(#delete{username = UserName, realm = Realm}, State) ->
-    {ok, #yaas_realm{id = RealmId}} = boss_db:find(yaas_realm, [{realm,'equals', Realm}]),
-    {ok, #yaas_user{id = UserId}} = boss_db:find(yaas_user, [{user_name, 'equals', UserName},
-                                                                         {realm, 'equals', RealmId}]),
+    #yaas_realm{id = RealmId} = boss_db:find(yaas_realm, [{realm,'equals', Realm}]),
+    #yaas_user{id = UserId} = boss_db:find(yaas_user, [{user_name, 'equals', UserName},
+                                                       {realm, 'equals', RealmId}
+                                                      ]),
     boss_db:delete(UserId),
     {noreply, State}.
 
@@ -245,96 +250,140 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal functions
 %% ====================================================================
 
+-spec update_props(User::yaas:boss_record(), Props::yaas:properties()) -> Result when
+          Result :: {ok, list()}.
+
 update_props(User, Props) ->
     update_props(User, Props, {ok, []}).
 
 
+-spec update_props(User::yaas:boss_record(), Props::yaas:properties(), State) -> Result when
+          Result :: {ok, list()},
+          State :: {ok, list()}.
+
 update_props(User, [], State) ->
-    User:save(),
+    {ok, _} = User:save(),
     State;
 update_props(User, [{password, NewPassword} | Props], {ok, State}) ->
     NewUser = User:set(password, NewPassword),
     update_props(NewUser, Props, {ok, [password | State]});
 update_props(User, [{group, NewGroupName} | Props], {ok, State}) ->
+    lager:debug("In update_props/3 prop=~p", [{group, NewGroupName}]),
     case boss_db:find(yaas_group, [{group, 'equals', NewGroupName},
-                                   {users, 'not_contains', User:user_name()},
                                    {realm_id, 'equals', User:realm_id()},
                                    {id, 'not_equals', User:main_group_id()}
                                   ]) of
         [Group] ->
+            lager:debug("Group= ~p", [Group]),
             NewUser = User:set(main_group_id, Group:id()),
+            lager:debug("NewUser= ~p", [NewUser]),
+            lager:debug("User= ~p", [User]),
+            {ok, _} = group_add(User, Group),
+            lager:debug("OldGroup= ~p", [boss_db:find(User:main_group_id())]),
+            {ok, _} = group_delete(User, boss_db:find(User:main_group_id())),
             update_props(NewUser, Props, {ok, [group | State]});
         [] ->
             update_props(User, Props, {ok, State})
     end;
 update_props(User, [{groups, Groups} | Props], {ok, State}) ->
-    case update_groups(User:id(), User:realm_id(), Groups) of
-        ok ->
+    lager:debug("In update_props/3 prop=~p", [{groups, Groups}]),
+    case update_groups(User, Groups) of
+        {ok, _} ->
             update_props(User, Props, {ok, [groups | State]});
-        error ->
-            error
+        Error ->
+            throw(Error)
     end;
 update_props(User, [{add_groups, Groups} | Props], {ok, State}) ->
-    case add_groups(User:id(), User:realm_id(), Groups) of
-        ok ->
+    lager:debug("In update_props/3 prop=~p", [{add_groups, Groups}]),
+    case add_groups(User, Groups) of
+        {ok, _} ->
             update_props(User, Props, {ok, [ add_groups | State]});
-        error ->
-            error
+        Error ->
+            throw(Error)
     end;
 update_props(User, [{delete_groups, Groups} | Props], {ok, State}) ->
-    case delete_groups(User:id(), User:realm_id(), Groups) of
-        ok ->
+    lager:debug("In update_props/3 prop=~p", [{delete_groups, Groups}]),
+    case delete_groups(User, Groups) of
+        {ok, _} ->
             update_props(User, Props, {ok, [delete_groups | State]});
-        error ->
-            error
+        Error ->
+            throw(Error)
     end;
 update_props(_User, [_Unknown | _Props], _) ->
     throw("Unknown property").
 
 
-add_groups(UserId, RealmId, GroupNames) ->
-    Groups = boss_db:find(yaas_group, [{group, 'in', GroupNames},
-                                       {users, 'not_contains', UserId},
-                                       {realm_id, 'equals', RealmId}
-                                      ]),
-    add_groups(UserId, Groups).
+-spec add_groups(User::yaas:boss_record(), GroupNames::list()) -> Result when
+          Result :: {ok, string()}.
 
-delete_groups(UserId, RealmId, GroupNames) ->
-    Groups = boss_db:find(yaas_group, [{group, 'in', GroupNames},
-                                       {users, 'contains', UserId},
-                                       {realm_id, 'equals', RealmId}
-                                      ]),
-    delete_groups(UserId, Groups).
+add_groups(User, GroupNames) ->
+    group_add(User, boss_db:find(yaas_group, [{group, 'in', GroupNames},
+                                              {users, 'not_contains', User:id()},
+                                              {realm_id, 'equals', User:realm_id()}
+                                             ])).
 
-update_groups(UserId, RealmId, GroupNames) ->
-    delete_groups(UserId, boss_db:find(yaas_group, [{group, 'not_in', GroupNames},
-                                                    {users, 'contains', UserId},
-                                                    {realm_id, 'equals', RealmId}
-                                                   ])),
-    add_groups(UserId, boss_db:find(yaas_group, [{group, 'in', GroupNames},
-                                                 {users, 'not_contains', UserId},
-                                                 {realm_id, 'equals', RealmId}
+
+-spec delete_groups(User::yaas:boss_record(), GroupNames::[string()]) -> Result when
+          Result :: {ok, string()}.
+
+delete_groups(User, GroupNames) ->
+    group_delete(User, boss_db:find(yaas_group, [{group, 'in', GroupNames},
+                                                 {users, 'contains', User:id()},
+                                                 {realm_id, 'equals', User:realm_id()}
                                                 ])).
 
 
-add_groups(_, []) ->
-    ok;
-add_groups(UserId, [ Group | T ]) ->
-    NewGroup = Group:set(users, [UserId | Group:users()]),
-    case NewGroup:save() of
-        {ok, _} ->
-            add_groups(UserId, T);
-        Error ->
-            Error
-    end.
+-spec update_groups(User::yaas:boss_record(), GroupNames::[string()]) -> Result when
+          Result :: {ok, string()}.
 
-delete_groups(_, []) ->
-    ok;
-delete_groups(UserId, [Group | T]) ->
-    NewGroup = Group:set(users, lists:delete(UserId, Group:users())),
-    case NewGroup:save() of
+update_groups(User, GroupNames) ->
+    group_delete(User, boss_db:find(yaas_group, [{group, 'not_in', GroupNames},
+                                                 {users, 'contains', User:id()},
+                                                 {realm_id, 'equals', User:realm_id()}
+                                                ])),
+    group_add(User, boss_db:find(yaas_group, [{group, 'in', GroupNames},
+                                              {users, 'not_contains', User:id()},
+                                              {realm_id, 'equals', User:realm_id()}
+                                             ])).
+
+
+-spec group_add(User::yaas:boss_record(), Groups) -> Result when
+          Result :: {ok, string()} | {ok, yaas:boss_record()} | {error, Reason::term()},
+          Groups :: yaas:boss_record() | [yaas:boss_record()].
+
+group_add(User, []) ->
+    lager:debug("In group_add/2 params: User= ~p, end", [User]),
+    {ok, "Groups added"};
+group_add(User, [Group | Groups]) ->
+    lager:debug("In group_add/2 params: User= ~p, Groups=~p", [User, [Group | Groups]]),
+    case group_add(User, Group) of
         {ok, _} ->
-            delete_groups(UserId, T);
+            group_add(User, Groups);
         Error ->
             Error
-    end.
+    end;
+group_add(User, Group) ->
+    lager:debug("In group_add/2 single group process params: User= ~p, Group=~p", [User, Group]),
+    NewGroup = Group:set(users, [User:id() | Group:users()]),
+    NewGroup:save().
+
+
+-spec group_delete(User::yaas:boss_record(), Groups) -> Result when
+          Result :: {ok, string()} | {ok, yaas:boss_record()} | {error, Reason::term()},
+          Groups :: yaas:boss_record() | [yaas:boss_record()].
+
+group_delete(User, []) ->
+    lager:debug("In group_delete/2 params: User= ~p, end", [User]),
+    {ok, "Groups deleted"};
+group_delete(User, [Group | Groups]) ->
+    lager:debug("In group_delete/2 params: User= ~p, Groups=~p", [User, [Group | Groups]]),
+    case group_delete(User, Group) of
+        {ok, _} ->
+            group_delete(User, Groups);
+        Error ->
+            Error
+    end;
+group_delete(User, Group) ->
+    lager:debug("In group_delete/2 single group process params: User= ~p, Group=~p", [User, Group]),
+    NewGroup = Group:set(users, lists:delete(User:id(), Group:users())),
+    NewGroup:save().
