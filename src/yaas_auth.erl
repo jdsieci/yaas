@@ -132,7 +132,8 @@ handle_call(#add{user = #user{username = UserName, realm = Realm}, props = Props
                                              NewGroup = Group:set(users, [SavedUser:id() | Group:users()]),
                                              {ok, _} = NewGroup:save(),
                                              proplists:delete(password, Props),
-                                             update_props(SavedUser, Props)
+                                             update_props(SavedUser, Props),
+                                             {ok, added}
                                      end) of
                 {atomic, _Result} ->
                     lager:info("User ~p@~p added", [UserName, Realm]),
@@ -149,7 +150,9 @@ handle_call(#update{user = #user{username = UserName, realm = RealmName}, props 
                                  ]) of
         [User] ->
             lager:debug("User= ~p", [User]),
-            case boss_db:transaction(fun() -> update_props(User, Props) end) of
+            case boss_db:transaction(fun() -> update_props(User, Props),
+                                              {ok, updated}
+                                     end) of
                 {atomic, Result} ->
                     lager:info("User ~p@~p updated: ~p", [UserName, RealmName, Result]),
                     {reply, ok, State};
@@ -163,19 +166,19 @@ handle_call(#update{user = #user{username = UserName, realm = RealmName}, props 
     end;
 
 handle_call(#delete{username = UserName, realm = RealmName}, _From, State) ->
-    lager:debug("yaas:auth:handle_call/3 action=delete"),
-    #yaas_realm{id = RealmId} = boss_db:find_first(yaas_realm, [{realm,'equals', RealmName}]),
+    lager:debug("yaas_auth:handle_call/3 action=delete"),
+    Realm = boss_db:find_first(yaas_realm, [{realm,'equals', RealmName}]),
     User = boss_db:find_first(yaas_user, [{user_name, 'equals', UserName},
-                                          {realm_id, 'equals', RealmId}]),
-    lager:debug("User=~p",[User]),
+                                          {realm_id, 'equals', Realm:id()}]),
+    lager:debug("User=~p; User:id() = ~p",[User, User:id()]),
     Groups = boss_db:find(yaas_group, [{users, 'contains', User:id()},
-                                       {realm_id, 'equals', RealmId}
+                                       {realm_id, 'equals', Realm:id()}
                                       ]),
     lager:debug("Groups=~p",[Groups]),
     case boss_db:transaction(fun() ->
                                      ok = boss_db:delete(User:id()),
                                      group_delete(User, Groups),
-                                     {ok, "User deleted"}
+                                     {ok, deleted}
                              end) of
         {atomic, Result} ->
             lager:info("User ~p@~p deleted", [UserName, RealmName]),
