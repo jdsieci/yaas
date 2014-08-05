@@ -26,9 +26,9 @@
 %% ====================================================================
 -export([check/2, add/2, update/2, delete/1]).
 
-
 -spec check(User::yaas:user(), Password::string()) -> Result when
           Result :: ok | error.
+%% @doc Checks credentials (login process)
 check({UserName, Realm}, Password) ->
     poolboy:transaction(?MODULE, fun(Worker) ->
                                       gen_server:call(Worker, #check{user = #user{username = UserName, realm = Realm}, password = Password})
@@ -36,6 +36,7 @@ check({UserName, Realm}, Password) ->
 
 -spec add(User::yaas:user(), list()) -> Result when
           Result :: ok | error.
+%% @doc Adds user
 add({UserName, Realm}, []) ->
     poolboy:transaction(?MODULE, fun(Worker) ->
                                       gen_server:call(Worker, #add{user = #user{username = UserName, realm = Realm}})
@@ -47,6 +48,7 @@ add({UserName, Realm}, Props) when is_list(Props) ->
 
 -spec update(User::yaas:user(), list()) -> Result when
           Result :: ok | error.
+%% @doc Update users informations
 update({UserName, Realm}, Props) when is_list(Props) ->
     poolboy:transaction(?MODULE, fun(Worker) ->
                                       gen_server:call(Worker, #update{user = #user{username = UserName, realm = Realm}, props = Props})
@@ -54,6 +56,7 @@ update({UserName, Realm}, Props) when is_list(Props) ->
 
 -spec delete(User::yaas:user()) -> Result when
           Result :: ok | error.
+%% @doc Removes user
 delete({UserName, Realm}) ->
     poolboy:transaction(?MODULE, fun(Worker) ->
                                          gen_server:call(Worker, #delete{username = UserName, realm = Realm})
