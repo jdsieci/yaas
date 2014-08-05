@@ -265,6 +265,7 @@ update_props(User, Props) ->
           State :: {ok, list()}.
 
 update_props(User, [], State) ->
+    lager:debug("In update_props/3 User=~p; end", [User]),
     {ok, _} = User:save(),
     State;
 update_props(User, [{password, NewPassword} | Props], {ok, State}) ->
@@ -340,13 +341,16 @@ delete_groups(User, GroupNames) ->
           Result :: {ok, string()}.
 
 update_groups(User, GroupNames) ->
+    lager:debug("In update_groups/2 params: User= ~p, GroupNames=~p", [User, GroupNames]),
     group_delete(User, boss_db:find(yaas_group, [{group, 'not_in', GroupNames},
                                                  {users, 'contains', User:id()},
-                                                 {realm_id, 'equals', User:realm_id()}
+                                                 {realm_id, 'equals', User:realm_id()},
+                                                 {id, 'not_equals', User:main_group_id()}
                                                 ])),
     group_add(User, boss_db:find(yaas_group, [{group, 'in', GroupNames},
                                               {users, 'not_contains', User:id()},
-                                              {realm_id, 'equals', User:realm_id()}
+                                              {realm_id, 'equals', User:realm_id()},
+                                              {id, 'not_equals', User:main_group_id()}
                                              ])).
 
 
@@ -367,8 +371,13 @@ group_add(User, [Group | Groups]) ->
     end;
 group_add(User, Group) ->
     lager:debug("In group_add/2 single group process params: User= ~p, Group=~p", [User, Group]),
-    NewGroup = Group:set(users, [User:id() | Group:users()]),
-    NewGroup:save().
+    case lists:member(User:id(), Group:users()) of
+        false ->
+            NewGroup = Group:set(users, [User:id() | Group:users()]),
+            NewGroup:save();
+        true ->
+            {ok, Group}
+    end.
 
 
 -spec group_delete(User::yaas:boss_record(), Groups) -> Result when
