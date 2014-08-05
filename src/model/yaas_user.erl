@@ -1,6 +1,6 @@
 %% -*- coding: utf-8 -*-
+%% @private
 %% @author tofik
-%% @doc @todo Add description to yaas_auth.
 
 
 -module(yaas_user, [Id,
