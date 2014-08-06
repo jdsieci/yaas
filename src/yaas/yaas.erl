@@ -46,7 +46,7 @@
 %%          {error, Reason}
 %% --------------------------------------------------------------------
 start(_StartType, _StartArgs) ->
-    case yaas_main_sup:start_link() of
+    case main_sup:start_link() of
         {ok, Pid} ->
             {ok, Pid};
         Error ->

@@ -3,11 +3,11 @@
 %% @author tofik
 %% @doc.
 
--module(yaas_group,[Id,
+-module(group,[Id,
                      Group::string(),
                      RealmId,
                      Users]).
-
+-package(yaas.model).
 -belongs_to_yaas_realm(realm).
 -has({yaas_user, many}).
 %%

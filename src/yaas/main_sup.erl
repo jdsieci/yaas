@@ -2,7 +2,7 @@
 %% @doc @todo Add description to yaas_main_sup.
 
 
--module(yaas_main_sup).
+-module(yaas.main_sup).
 -behaviour(supervisor).
 -export([init/1]).
 

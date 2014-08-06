@@ -5,7 +5,7 @@
 %%% Created : 1 mar 2014
 %%% -------------------------------------------------------------------
 
--module(yaas_authz).
+-module(yaas.authz).
 -behaviour(gen_server).
 -behaviour(poolboy_worker).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -30,7 +30,7 @@ delete({UserName, Realm}, []) ->
 
 
 %% ====================================================================
-%% Behavioural functions 
+%% Behavioural functions
 %% ====================================================================
 -record(state, {}).
 

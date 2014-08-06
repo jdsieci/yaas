@@ -3,12 +3,12 @@
 %% @author tofik
 
 
--module(yaas_user, [Id,
+-module(user, [Id,
                    UserName::string(),
                    Password,
                    RealmId,
                    MainGroupId]).
-
+-package(yaas.model).
 -belongs_to_yaas_realm(realm).
 -belongs_to_yaas_group(main_group).
 %%

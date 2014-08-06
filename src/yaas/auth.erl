@@ -6,7 +6,7 @@
 %%% Created : 01-03-2014
 %%% -------------------------------------------------------------------
 
--module(yaas_auth).
+-module(yaas.auth).
 -behaviour(gen_server).
 -behaviour(poolboy_worker).
 
