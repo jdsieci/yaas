@@ -1,20 +1,19 @@
 language: erlang
 otp_release:
-   - 17.5
-   - 17.4
-   - 17.3
-   - 17.2
-   - 17.1
-   - 17.0
-   - R16B03-1
-   - R16B02
-   - R16B01
+  - 17.4
+  - 17.3
+  - 17.1
+  - 17.0
+  - R16B03-1
+  - R16B02
+  - R16B01
+
+sudo: false
 
 script:
   - rebar get-deps
   - rebar compile 
   - rebar eunit skip_deps=true
-  - mkdir plt
-  - ./travis-dialyzer.sh
+
 notifications:
   email: false
